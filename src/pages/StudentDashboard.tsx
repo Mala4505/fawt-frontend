@@ -218,6 +218,7 @@ export default function StudentDashboard() {
           'Content-Type': 'application/json'
         }
       });
+      console.log("Response from backend:", res.data); // ✅ Should include id, user, book
 
       const newEntry: Entry = {
         id: Number(res.data.id),
