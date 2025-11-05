@@ -149,17 +149,40 @@
 //         </div>
 //       </div>
 //     </div>
-//   );
-// }
+
 
 import { useState, useEffect, useMemo } from 'react';
 import Navbar from '../components/Navbar';
+import LoadingSpinner from "../components/LoadingSpinner";
 import PageRangeForm from '../components/PageRangeForm';
 import EntryList from '../components/EntryList';
 import GroupView from '../components/GroupView';
 import { useAuth } from '../context/AuthContext';
 import { Entry, Group } from "../types/index";
 import axios from 'axios';
+import { toast } from 'react-hot-toast';
+// ...imports remain unchanged
+
+function formatPageRanges(pages: number[]): string {
+  if (!pages.length) return '';
+  const sorted = [...new Set(pages)].sort((a, b) => a - b);
+  const ranges: string[] = [];
+
+  let start = sorted[0];
+  let end = sorted[0];
+
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i] === end + 1) {
+      end = sorted[i];
+    } else {
+      ranges.push(start === end ? `${start}` : `${start}–${end}`);
+      start = end = sorted[i];
+    }
+  }
+
+  ranges.push(start === end ? `${start}` : `${start}–${end}`);
+  return ranges.join(', ');
+}
 
 export default function StudentDashboard() {
   const { user } = useAuth();
@@ -167,18 +190,14 @@ export default function StudentDashboard() {
   const [books, setBooks] = useState<{ id: string; name: string }[]>([]);
   const [selectedBookId, setSelectedBookId] = useState<string>('');
   const [entries, setEntries] = useState<Entry[]>([]);
-  const [studentGroup, setStudentGroup] = useState<Group | undefined>(undefined);
+  const [myGroups, setMyGroups] = useState<Group[]>([]);
+  const [myPending, setMyPending] = useState<{ book: string; pendingPages: number[] }[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    axios.get('/api/books/').then(res => {
-      setBooks(res.data);
-    });
-  }, []);
-
-  useEffect(() => {
+  const fetchEntries = async () => {
     if (!user) return;
-
-    axios.get(`/api/entries/?user=${user.id}`).then(res => {
+    try {
+      const res = await axios.get(`/api/entries/?user=${user.id}`);
       const mapped = res.data.map((e: any) => ({
         id: Number(e.id),
         studentTr: e.user.tr_number,
@@ -188,14 +207,45 @@ export default function StudentDashboard() {
         toPage: e.to_page
       }));
       setEntries(mapped);
-    });
+    } catch {
+      toast.error("Failed to fetch entries");
+    }
+  };
 
-    axios.get('/api/group-list/').then(res => {
-      const group = res.data.find((g: Group) =>
-        g.members.some(m => m.trNumber === user.trNumber)
+  const fetchGroupData = async () => {
+    try {
+      const res = await axios.get('/api/group-list/');
+      const allGroups = res.data.groups || [];
+      const allPending = res.data.pending || [];
+
+      const filteredGroups = allGroups.filter((g: Group) =>
+        g.members.includes(user?.name)
       );
-      setStudentGroup(group);
+
+      const filteredPending = allPending
+        .filter((p: any) => p.name === user?.name)
+        .map((p: any) => ({
+          book: p.book,
+          pendingPages: p.unmatchedPages
+        }));
+
+      setMyGroups(filteredGroups);
+      setMyPending(filteredPending);
+    } catch {
+      toast.error("Failed to fetch group data");
+    }
+  };
+
+  useEffect(() => {
+    axios.get('/api/books/').then(res => {
+      setBooks(res.data);
     });
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    fetchEntries();
+    fetchGroupData();
   }, [user]);
 
   const handleAddEntry = async (entry: {
@@ -207,50 +257,51 @@ export default function StudentDashboard() {
     if (!user) return;
 
     try {
-      const res = await axios.post('/api/entries/', {
+      setLoading(true);
+      await axios.post('/api/entries/', {
         user_id: user.id,
         book_id: entry.bookId,
         from_page: entry.fromPage,
         to_page: entry.toPage,
         revised: false
       }, {
-        headers: {
-          'Content-Type': 'application/json'
-        }
+        headers: { 'Content-Type': 'application/json' }
       });
-      console.log("Response from backend:", res.data); // ✅ Should include id, user, book
 
-      const newEntry: Entry = {
-        id: Number(res.data.id),
-        studentTr: user.trNumber,
-        studentName: user.name,
-        bookName: entry.bookName,
-        fromPage: entry.fromPage,
-        toPage: entry.toPage
-      };
-
-      setEntries(prev => [...prev, newEntry]);
+      toast.success("Entry added successfully");
+      await fetchEntries();
+      await fetchGroupData();
     } catch (err: any) {
-      const message = err.response?.data?.error || err.message;
-      alert(`Failed to add entry: ${message}`);
+      const message = err.response?.data?.detail || err.message;
+      toast.error(`Failed to add entry: ${message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleDeleteEntry = async (id: string | number) => {
     try {
+      setLoading(true);
       await axios.delete(`/api/entries/${id}/`);
-      setEntries(prev => prev.filter(e => e.id !== id));
+      toast.success("Entry deleted");
+      await fetchEntries();
+      await fetchGroupData();
     } catch (err: any) {
-      const message = err.response?.data?.error || err.message;
-      alert(`Failed to delete entry: ${message}`);
+      const message = err.response?.data?.detail || err.message;
+      toast.error(`Failed to delete entry: ${message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
   const selectedBookObj = books.find(b => String(b.id) === String(selectedBookId));
 
   const bookEntries = useMemo(() => {
-    if (!selectedBookObj) return [];
-    return entries.filter(e => e.bookName === selectedBookObj.name);
+    const filtered = selectedBookObj
+      ? entries.filter(e => e.bookName === selectedBookObj.name)
+      : entries;
+
+    return filtered.sort((a, b) => a.fromPage - b.fromPage);
   }, [entries, selectedBookObj]);
 
   return (
@@ -264,14 +315,18 @@ export default function StudentDashboard() {
             onChange={e => setSelectedBookId(e.target.value)}
             className="w-full max-w-md px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-400 focus:border-transparent outline-none"
           >
-            <option value="">Select a book</option>
+            <option value="">Select Book</option>
             {books.map(book => (
-              <option key={book.id} value={book.id}>
-                {book.name}
-              </option>
+              <option key={book.id} value={book.id}>{book.name}</option>
             ))}
           </select>
         </div>
+
+        {loading && (
+          <div className="flex justify-center py-4">
+            <LoadingSpinner />
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
@@ -297,7 +352,29 @@ export default function StudentDashboard() {
           </div>
 
           <div className="space-y-6">
-            <GroupView group={studentGroup} currentUserTr={user?.trNumber} />
+            {myGroups.map((group, idx) => (
+              <div key={idx} className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                <h3 className="text-lg font-semibold text-slate-800 mb-2">{group.book}</h3>
+                <p className="text-sm text-slate-600 mb-1">Shared Pages: {formatPageRanges(group.sharedPages)}</p>
+                <p className="text-xs text-slate-500 mb-1">Group Members:</p>
+                <ul className="list-disc list-inside text-sm text-slate-700">
+                  {group.members.map((name, i) => (
+                    <li key={i}>{name}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+
+            {myPending.length > 0 && (
+              <div className="bg-white rounded-xl shadow-sm border border-red-200 p-6">
+                <h3 className="text-lg font-semibold text-red-700 mb-2">Pending Pages</h3>
+                {myPending.map((p, idx) => (
+                  <p key={idx} className="text-sm text-red-600">
+                    {p.book}: {formatPageRanges(p.pendingPages)}
+                  </p>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

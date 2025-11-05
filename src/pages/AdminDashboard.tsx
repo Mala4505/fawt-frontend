@@ -160,15 +160,14 @@ import Navbar from '../components/Navbar';
 import { Download, Users, BookOpen } from 'lucide-react';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
-import { Entry, Group } from "../types/index";
+import { Entry } from "../types/index";
 import BookForm from '../components/BookForm';
 
 export default function AdminDashboard() {
   const [entries, setEntries] = useState<Entry[]>([]);
-  const [groups, setGroups] = useState<Group[]>([]);
+  const [groupData, setGroupData] = useState<{ groups: any[]; pending: any[] }>({ groups: [], pending: [] });
   const [filterBook, setFilterBook] = useState<string>('all');
   const [filterStudent, setFilterStudent] = useState<string>('all');
-
   const [books, setBooks] = useState<string[]>([]);
 
   useEffect(() => {
@@ -185,7 +184,7 @@ export default function AdminDashboard() {
     });
 
     axios.get('/api/group-list/').then(res => {
-      setGroups(res.data);
+      setGroupData(res.data);
     });
   }, []);
 
@@ -201,13 +200,36 @@ export default function AdminDashboard() {
   };
 
   const students = Array.from(new Set(entries.map(e => e.studentTr)));
-  // const books = Array.from(new Set(entries.map(e => e.bookName)));
 
   const filteredEntries = entries.filter(entry => {
     if (filterBook !== 'all' && entry.bookName !== filterBook) return false;
     if (filterStudent !== 'all' && entry.studentTr !== filterStudent) return false;
     return true;
   });
+
+
+
+  function formatPageRanges(pages: number[]): string {
+    if (!pages.length) return '';
+    const sorted = [...new Set(pages)].sort((a, b) => a - b);
+    const ranges: string[] = [];
+
+    let start = sorted[0];
+    let end = sorted[0];
+
+    for (let i = 1; i < sorted.length; i++) {
+      if (sorted[i] === end + 1) {
+        end = sorted[i];
+      } else {
+        ranges.push(start === end ? `${start}` : `${start}–${end}`);
+        start = end = sorted[i];
+      }
+    }
+
+    ranges.push(start === end ? `${start}` : `${start}–${end}`);
+    return ranges.join(', ');
+  }
+
 
   const exportEntries = () => {
     const data = filteredEntries.map(e => ({
@@ -224,13 +246,11 @@ export default function AdminDashboard() {
   };
 
   const exportGroups = () => {
-    const data = groups.flatMap(group =>
-      group.members.map(member => ({
-        'Group ID': group.id,
-        Book: group.bookName,
-        'Student TR': member.trNumber,
-        'Student Name': member.name,
-        'Shared Pages': group.sharedPages.join(', ')
+    const data = groupData.groups.flatMap(group =>
+      group.members.map(name => ({
+        Book: group.book,
+        'Student Name': name,
+        'Shared Pages': formatPageRanges(group.sharedPages)
       }))
     );
     const ws = XLSX.utils.json_to_sheet(data);
@@ -315,39 +335,44 @@ export default function AdminDashboard() {
             <div className="flex items-center space-x-2 mb-4">
               <Users className="w-5 h-5 text-slate-600" />
               <h2 className="text-lg font-semibold text-slate-800">Auto-Generated Groups</h2>
-              <span className="text-sm text-slate-500">({groups.length})</span>
+              <span className="text-sm text-slate-500">({groupData.groups.length})</span>
             </div>
+
             <div className="space-y-4 max-h-96 overflow-y-auto">
-              {groups.map(group => (
-                <div key={group.id} className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+              {groupData.groups.map((group, idx) => (
+                <div key={idx} className="p-4 bg-slate-50 rounded-lg border border-slate-200">
                   <div className="flex justify-between items-start mb-3">
-                    <h3 className="font-medium text-slate-800">Group {group.id}</h3>
-                    <span className="px-2 py-1 bg-white text-slate-600 text-xs rounded border border-slate-200">{group.bookName}</span>
+                    <h3 className="font-medium text-slate-800">Shared Pages</h3>
+                    <span className="px-2 py-1 bg-white text-slate-600 text-xs rounded border border-slate-200">{group.book}</span>
                   </div>
-                  <div className="mb-3">
-                    <p className="text-xs text-slate-500 mb-1">Shared Pages:</p>
-                    <div className="flex flex-wrap gap-1">
-                      {group.sharedPages.map((range, idx) => (
-                        <span key={idx} className="px-2 py-1 bg-white text-slate-600 text-xs rounded border border-slate-200">  From <strong>{range.from}</strong> to <strong>{range.to}</strong></span>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-500 mb-1">Members:</p>
-                    <div className="space-y-1">
-                      {group.members.map(member => (
-                        <p key={member.trNumber} className="text-sm text-slate-600">
-                          {member.name} ({member.trNumber})
-                        </p>
-                      ))}
-                    </div>
+                  <p className="text-sm text-slate-600 mb-2">
+                    Pages: {formatPageRanges(group.sharedPages)}
+                  </p>
+                  <p className="text-xs text-slate-500 mb-1">Members:</p>
+                  <div className="space-y-1">
+                    {group.members.map((name, i) => (
+                      <p key={i} className="text-sm text-slate-600">{name}</p>
+                    ))}
                   </div>
                 </div>
               ))}
             </div>
+
+            {/* {groupData.pending.length > 0 && (
+              <div className="mt-6">
+                <h3 className="text-lg font-semibold text-red-700 mb-2">Pending Students</h3>
+                <div className="space-y-2">
+                  {groupData.pending.map((p, idx) => (
+                    <div key={idx} className="text-sm text-red-600">
+                      {p.name} – {p.book} (unmatched pages: {formatPageRanges(p.unmatchedPages)})
+                    </div>
+                  ))}
+
+                </div>
+              </div>
+            )} */}
           </div>
         </div>
       </div>
-    </div>
-  );
+    </div>)
 }
