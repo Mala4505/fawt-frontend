@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import Navbar from '../components/Navbar';
 import LoadingSpinner from '../components/LoadingSpinner';
-import GroupCard from '../components/GroupCard';
+// import GroupCard from '../components/GroupCard';
 import GroupForm from '../components/GroupForm';
 import { User, Group } from '../types';
 
@@ -64,9 +64,9 @@ export default function GroupingPage() {
 
             <div className="bg-white rounded-xl shadow-sm border p-6 space-y-4">
               <h2 className="text-lg font-semibold text-slate-700">Existing Groups</h2>
-              {groups.map(group => (
+              {/* {groups.map(group => (
                 <GroupCard key={group.id} group={group} />
-              ))}
+              ))} */}
             </div>
           </div>
         )}

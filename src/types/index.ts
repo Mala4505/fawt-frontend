@@ -1,8 +1,12 @@
 export interface User {
   id: string;
-  trNumber: string;
-  name: string;
+  trNumber: string | undefined;
+  name: string | undefined;
   role: 'student' | 'admin';
+}
+export  interface Book {
+  id: number;
+  name: string;
 }
 export interface Entry {
   id: number;
