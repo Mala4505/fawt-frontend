@@ -141,14 +141,6 @@ export default function Navbar() {
                 >
                   Grouping
                 </Link>
-                <Link
-                  to="/container"
-                  className={`${navItemClass} ${
-                    location.pathname === '/container' ? activeClass : ''
-                  }`}
-                >
-                  Container
-                </Link>
               </>
             )}
             {user?.role === 'student' && (
@@ -168,7 +160,7 @@ export default function Navbar() {
             <span className="text-sm text-slate-600">{user?.name}</span>
             <button
               onClick={logout}
-              className="flex items-center space-x-2 px-3 py-2 text-sm text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition"
+              className="flex items-center space-x-2 px-3 py-2 text-sm text-slate-600 hover:text-slate-200 hover:bg-slate-100 rounded-lg transition"
             >
               <LogOut className="w-4 h-4" />
               <span>Logout</span>
