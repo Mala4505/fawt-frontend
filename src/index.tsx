@@ -1,7 +1,9 @@
 import './index.css';
 import axios from 'axios';
 
-axios.defaults.baseURL = 'http://localhost:8000/';
+const apiUrl = import.meta.env.VITE_API_URL;
+
+axios.defaults.baseURL = apiUrl;
 axios.defaults.withCredentials = true;
 
 
