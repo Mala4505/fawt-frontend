@@ -98,11 +98,6 @@ export default function Login() {
             </button>
             {error && <p className="text-sm text-red-600 text-center">{error}</p>}
           </form>
-          <div className="mt-6 pt-6 border-t border-slate-200">
-            <p className="text-xs text-slate-500 text-center">
-              Tip: Enter "admin" for admin access
-            </p>
-          </div>
         </div>
       </div>
     </div>
